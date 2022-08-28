@@ -1,0 +1,10 @@
+{
+    "version": "1.0.0",
+    "hook": {
+        "path": "/etc/containers/hooks.d/traefik.py"
+    },
+    "when": {
+        "always": true
+    },
+    "stages": ["poststart", "poststop"]
+}
