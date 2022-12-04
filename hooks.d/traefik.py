@@ -54,12 +54,12 @@ def apply_defaults(conf, spec):
             continue
 
         routers = proto['routers']
-        services = proto['services'] = proto.get('services', {})
+        services = proto.get('services', {})
 
         if len(routers) == 1:
             # if there is only one router, we can infer the config
             (router_name, router), = routers.items()
-            if not 'service' in routers:
+            if not 'service' in router:
                 if len(services) == 1:
                     # if there is a service, we just use that
                     service_name, = services
@@ -108,6 +108,9 @@ def apply_defaults(conf, spec):
 
                     del loadbalancer['server']
 
+        if services:
+            proto['services'] = services
+
 def main():
     data = json.load(sys.stdin)
     cid = data["id"]
@@ -124,11 +127,23 @@ def main():
     with subprocess.Popen(["/usr/bin/podman", "inspect", cid], stdout=subprocess.PIPE, env=dict(PATH=PATH)) as proc:
         spec = json.load(proc.stdout)[0]
 
-    if not spec["Config"]["Labels"].get("traefik.enable", False):
+    if not spec or not spec["Config"]:
         return
 
-    conf = decode_labels(spec["Config"]["Labels"])
-    apply_defaults(conf, spec)
+    config = spec["Config"]
+    pod = spec["Pod"]
+    if pod:
+        if not spec["IsInfra"]:
+            return
+
+        with subprocess.Popen(["/usr/bin/podman", "pod", "inspect", pod], stdout=subprocess.PIPE, env=dict(PATH=PATH)) as proc:
+            podspec = json.load(proc.stdout)
+
+        conf = decode_labels(podspec["Labels"])
+        apply_defaults(conf, spec)
+    else:
+        conf = decode_labels(config["Labels"])
+        apply_defaults(conf, spec)
 
     with open(filename, "w") as fp:
         yaml.dump(conf, fp)
